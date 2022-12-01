@@ -26,9 +26,9 @@ resource "aws_ecs_task_definition" "tfc-audit-trail" {
   }
   # the execution role is for Fargate/underlying EC2 instances to perform API calls
   # mainly needed for the awslogs driver we use to capture crash/error logs for vector
-  execution_role_arn = aws_iam_role.ecsTaskExecutionRole.arn
+  execution_role_arn = aws_iam_role.ecs-task-execution-role.arn
   # the task role is for applications running within containers to make AWS API calls
-  task_role_arn = aws_iam_role.vector-cloudwatch-logs.arn
+  task_role_arn = aws_iam_role.vector.arn
 
   container_definitions = jsonencode([
     {
@@ -71,14 +71,14 @@ resource "aws_ecs_task_definition" "tfc-audit-trail" {
         {
           name = "DATA"
           value = base64encode(templatefile("${path.module}/vector.toml.tftpl", {
-            endpoint             = var.tfc-audit-trail-url
-            scrape_interval_secs = var.scrape-interval-secs
+            endpoint             = var.tfc_audit_trail_url
+            scrape_interval_secs = var.scrape_interval_secs
             token                = var.TFC_ORG_TOKEN
             group_name           = aws_cloudwatch_log_group.tfc-audit-trail.name
             region               = var.region
             stream_name          = aws_cloudwatch_log_stream.tfc-audit-trail.name
-            page_size            = var.page-size
-            cache_num_events     = var.deduplication-cache-size
+            page_size            = var.page_size
+            cache_num_events     = var.deduplication_cache_size
           }))
         }
       ]

@@ -2,6 +2,7 @@ data "aws_availability_zones" "available" {}
 
 module "tfc-audit-trail-vpc" {
   source = "terraform-aws-modules/vpc/aws"
+  version = "3.18.1"
 
   name = "tfc-audit-trail"
   cidr = "10.0.0.0/16"
