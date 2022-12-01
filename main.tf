@@ -24,7 +24,7 @@ resource "aws_ecs_task_definition" "tfc-audit-trail" {
   volume {
     name = "vector-conf-vol"
   }
-  # the execution role is for FARGATE/underlying EC2 instances to perform API calls
+  # the execution role is for Fargate/underlying EC2 instances to perform API calls
   # mainly needed for the awslogs driver we use to capture crash/error logs for vector
   execution_role_arn = aws_iam_role.ecsTaskExecutionRole.arn
   # the task role is for applications running within containers to make AWS API calls
