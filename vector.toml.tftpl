@@ -1,0 +1,42 @@
+[sources.tfc_audit_trail]
+type = "http_client"
+endpoint = "${endpoint}?page[size]=${page_size}"
+scrape_interval_secs = ${scrape_interval_secs}
+[sources.tfc_audit_trail.auth]
+strategy = "bearer"
+token = "${token}"
+
+[transforms.remap_data]
+inputs = [ "tfc_audit_trail"]
+type = "remap"
+source = '''
+  parsed = parse_json!(.message)
+  # the endpoint is sorted by most recent events, needs to be reversed
+  reverse = []
+  for_each(array!(parsed.data)) -> |_index, value| {
+    # ensure timestamp stays on object https://github.com/vectordotdev/vector/issues/15346
+    value.original_timestamp = value.timestamp
+    reverse = append([value], reverse)
+  }
+  . = reverse
+'''
+
+[transforms.dedupe]
+type = "dedupe"
+inputs = [ "remap_data" ]
+[transforms.dedupe.cache]
+num_events = ${cache_num_events}
+[transforms.dedupe.fields]
+match = ["id"]
+
+[sinks.aws_cloudwatch_logs]
+type = "aws_cloudwatch_logs"
+inputs = [ "dedupe" ]
+create_missing_group = false
+create_missing_stream = false
+group_name = "${group_name}"
+compression = "none"
+region = "${region}"
+stream_name = "${stream_name}"
+[sinks.aws_cloudwatch_logs.encoding]
+codec = "json"
