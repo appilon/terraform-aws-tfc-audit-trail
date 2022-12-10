@@ -18,8 +18,26 @@ data "aws_iam_policy" "ecs-task-execution-role" {
   name = "AmazonECSTaskExecutionRolePolicy"
 }
 
+# SSM needed for secrets
+resource "aws_iam_policy" "ssm-get-parameters" {
+  name = "ssm-get-parameters-${local.name}"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "ssm:GetParameters",
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role" "ecs-task-execution-role" {
-  name               = "ecs-task-execution-role-tfc-audit-trail"
+  name               = "ecs-task-execution-role-${local.name}"
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 }
 
@@ -28,13 +46,18 @@ resource "aws_iam_role_policy_attachment" "attach-ecs-task-execution-role" {
   policy_arn = data.aws_iam_policy.ecs-task-execution-role.arn
 }
 
+resource "aws_iam_role_policy_attachment" "attach-ssm-get-parameters" {
+  role       = aws_iam_role.ecs-task-execution-role.name
+  policy_arn = aws_iam_policy.ssm-get-parameters.arn
+}
+
 # Vector Role
 data "aws_iam_policy" "cloudwatch-logs-full" {
   name = "CloudWatchLogsFullAccess"
 }
 
 resource "aws_iam_role" "vector" {
-  name               = "vector-cloudwatch-logs"
+  name               = "vector-cloudwatch-logs-${local.name}"
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 }
 

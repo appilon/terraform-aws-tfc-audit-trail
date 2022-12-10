@@ -2,21 +2,32 @@ provider "aws" {
   region = var.region
 }
 
-resource "aws_cloudwatch_log_group" "tfc-audit-trail" {
+locals {
   name = "tfc-audit-trail"
 }
 
+resource "aws_cloudwatch_log_group" "tfc-audit-trail" {
+  name = local.name
+}
+
 resource "aws_cloudwatch_log_stream" "tfc-audit-trail" {
-  name           = "tfc-audit-trail"
+  name           = local.name
   log_group_name = aws_cloudwatch_log_group.tfc-audit-trail.name
 }
 
+resource "aws_ssm_parameter" "tfc-org-token" {
+  name  = "tfc-org-token-${local.name}"
+  type  = "SecureString"
+  tier  = "Standard"
+  value = var.TFC_ORG_TOKEN
+}
+
 resource "aws_ecs_cluster" "tfc-audit-trail-cluster" {
-  name = "tfc-audit-trail-cluster"
+  name = local.name
 }
 
 resource "aws_ecs_task_definition" "tfc-audit-trail" {
-  family                   = "tfc-audit-trail"
+  family                   = local.name
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 256
@@ -24,21 +35,28 @@ resource "aws_ecs_task_definition" "tfc-audit-trail" {
   volume {
     name = "vector-conf-vol"
   }
-  # the execution role is for Fargate/underlying EC2 instances to perform API calls
+  # the execution role is for the ecs agent on the underlying EC2 instances to perform AWS API calls
   # mainly needed for the awslogs driver we use to capture crash/error logs for vector
+  # and retrieving SSM parameters, which we use for passing secrets
   execution_role_arn = aws_iam_role.ecs-task-execution-role.arn
   # the task role is for applications running within containers to make AWS API calls
   task_role_arn = aws_iam_role.vector.arn
 
   container_definitions = jsonencode([
     {
-      name      = "tfc-audit-trail"
+      name      = local.name
       image     = "timberio/vector:latest-alpine"
       essential = true
+      secrets = [
+        {
+          name      = "TFC_ORG_TOKEN"
+          valueFrom = aws_ssm_parameter.tfc-org-token.arn
+        }
+      ]
       dependsOn = [
         {
           condition     = "COMPLETE"
-          containerName = "tfc-audit-trail-config"
+          containerName = "${local.name}-config"
         }
       ]
       mountPoints = [
@@ -60,7 +78,7 @@ resource "aws_ecs_task_definition" "tfc-audit-trail" {
     # this is a sidecar container that writes the vector config into a shared volume
     # the vector container will wait for this container to complete
     {
-      name      = "tfc-audit-trail-config"
+      name      = "${local.name}-config"
       image     = "public.ecr.aws/docker/library/bash:latest"
       essential = false
       command = [
@@ -73,7 +91,6 @@ resource "aws_ecs_task_definition" "tfc-audit-trail" {
           value = base64encode(templatefile("${path.module}/vector.toml.tftpl", {
             endpoint             = var.tfc_audit_trail_url
             scrape_interval_secs = var.scrape_interval_secs
-            token                = var.TFC_ORG_TOKEN
             group_name           = aws_cloudwatch_log_group.tfc-audit-trail.name
             region               = var.region
             stream_name          = aws_cloudwatch_log_stream.tfc-audit-trail.name
@@ -97,7 +114,7 @@ resource "aws_ecs_task_definition" "tfc-audit-trail" {
 }
 
 resource "aws_ecs_service" "tfc-audit-trail-service" {
-  name            = "tfc-audit-trail-service"
+  name            = local.name
   cluster         = aws_ecs_cluster.tfc-audit-trail-cluster.id
   task_definition = aws_ecs_task_definition.tfc-audit-trail.arn
   desired_count   = 1
