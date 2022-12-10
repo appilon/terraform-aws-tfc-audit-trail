@@ -1,5 +1,5 @@
 output "audit_trail_log_group" {
-  description = "Name of the CloudWatch log group containing the audit trail stream."
+  description = "Name of the CloudWatch log group containing the audit trail stream and vector stream."
   value       = aws_cloudwatch_log_group.tfc-audit-trail.name
 }
 

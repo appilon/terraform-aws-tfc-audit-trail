@@ -4,7 +4,7 @@ endpoint = "${endpoint}?page[size]=${page_size}"
 scrape_interval_secs = ${scrape_interval_secs}
 [sources.tfc_audit_trail.auth]
 strategy = "bearer"
-token = "${token}"
+token = "$TFC_ORG_TOKEN"
 
 [transforms.remap_data]
 inputs = [ "tfc_audit_trail"]
